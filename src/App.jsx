@@ -5,33 +5,20 @@ import { supabase } from './lib/supabase'
 import Papa from 'papaparse'
 
 const CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Utilities', 'Shopping', 'Health', 'Other']
+const PEOPLE = ['ANA TRAMOSLJANIN', 'CARL OLOF JOEL BYSTEDT']
 const FOOD_MERCHANTS = ['lidl', 'coop', 'ica', 'hemkop']
 
 export default function App() {
+  const [expenses, setExpenses] = useState([])
   return (
     <>
-    <DocumentReader/>
-    <ExpenseTracker/>
+    <DocumentReader setExpenses={setExpenses} />
+    <ExpenseTracker expenses={expenses} setExpenses={setExpenses} />
     </>
   )
 }
 
-export function ExpenseTracker() {
-  const [expenses, setExpenses] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [formData, setFormData] = useState({
-    person: '',
-    amount: '',
-    category: CATEGORIES[0],
-    description: '',
-    date: new Date().toISOString().split('T')[0],
-  })
-
-  useEffect(() => {
-    loadExpenses()
-  }, [])
-
-  async function loadExpenses() {
+async function loadExpenses(setExpenses, setLoading) {
     try {
       setLoading(true)
       const { data, error } = await supabase
@@ -46,6 +33,23 @@ export function ExpenseTracker() {
       setLoading(false)
     }
   }
+
+export function ExpenseTracker({ expenses, setExpenses }) {
+
+  const [loading, setLoading] = useState(true)
+  const [formData, setFormData] = useState({
+    person: PEOPLE[0],
+    amount: '',
+    category: CATEGORIES[0],
+    description: '',
+    date: new Date().toISOString().split('T')[0],
+  })
+
+  useEffect(() => {
+    loadExpenses(setExpenses, setLoading)
+  }, [])
+
+  
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -64,7 +68,7 @@ export function ExpenseTracker() {
       }])
       if (error) throw error
       setFormData({ ...formData, amount: '', description: '' })
-      await loadExpenses()
+      await loadExpenses(setExpenses, setLoading)
     } catch (error) {
       console.error('Error adding expense:', error)
     }
@@ -74,7 +78,7 @@ export function ExpenseTracker() {
     try {
       const { error } = await supabase.from('expenses').delete().eq('id', id)
       if (error) throw error
-      await loadExpenses()
+      await loadExpenses(setExpenses, setLoading)
     } catch (error) {
       console.error('Error deleting expense:', error)
     }
@@ -102,11 +106,13 @@ export function ExpenseTracker() {
       {/* Form */}
       <h2 className="text-xl font-semibold mb-3">Add Expense</h2>
       <form onSubmit={handleSubmit} className="grid gap-3 mb-6">
-        <input
+        <select
           className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          type="text" name="person" placeholder="Person Name"
-          value={formData.person} onChange={handleChange}
-        />
+          name="person" value={formData.person} onChange={handleChange}>
+          {PEOPLE.map((person) => (
+            <option key={person} value={person}>{person}</option>
+          ))}
+          </select>
         <input
           className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
           type="number" name="amount" placeholder="Amount"
@@ -207,7 +213,7 @@ export function ExpenseTracker() {
   )
 }
 
-export function DocumentReader() {
+export function DocumentReader({ setExpenses }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -256,6 +262,7 @@ export function DocumentReader() {
               date: parseCsvDate(row.Datum)
             }])
             if (error) throw error
+            await loadExpenses(setExpenses, setLoading)
           }
           setMessage(`Inserted ${foodRows.length} FOOD entries successfully.`)
         } catch (err) {
