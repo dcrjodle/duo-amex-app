@@ -274,13 +274,13 @@ export function DocumentReader() {
   }
 
   return (
-    <div className="bg-white p-4 rounded-md shadow-md max-w-md mx-auto mb-6">
-      <h2 className="text-lg font-semibold mb-3">Upload CSV for Food Expenses</h2>
+    <div className="bg-white p-4 rounded-md shadow-md mx-auto mb-6">
+      <h2 className="text-lg font-semibold mb-3">{`Upload CSV for Food Expenses - works for ${FOOD_MERCHANTS.join(', ')}`}</h2>
       <input
         type="file"
         accept=".csv"
         onChange={handleFileUpload}
-        className="border p-2 rounded-md w-full mb-3"
+        className="border p-2 rounded-md w-full mb-3 cursor-pointer hover:bg-gray-100"
       />
       {loading && <p className="text-indigo-600">Processing...</p>}
       {message && <p className="text-gray-700">{message}</p>}
