@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Expense Tracker</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .header {
+        text-align: center;
+        color: white;
+        margin-bottom: 30px;
+      }
+
+      .header h1 {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+      }
+
+      .card {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .form-group input,
+      .form-group select {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 16px;
+        transition: border-color 0.3s;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+      }
+
+      .btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        margin-left: 10px;
+      }
+
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .expense-list {
+        margin-top: 20px;
+      }
+
+      .expense-item {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
+        gap: 10px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        align-items: center;
+      }
+
+      .expense-item:hover {
+        background: #e9ecef;
+      }
+
+      .expense-header {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
+        gap: 10px;
+        padding: 10px 15px;
+        font-weight: bold;
+        border-bottom: 2px solid #dee2e6;
+        margin-bottom: 10px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+      }
+
+      .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+      }
+
+      .stat-card h3 {
+        font-size: 14px;
+        opacity: 0.9;
+        margin-bottom: 5px;
+      }
+
+      .stat-card .value {
+        font-size: 28px;
+        font-weight: bold;
+      }
+
+      .category-breakdown {
+        margin-top: 20px;
+      }
+
+      .category-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px;
+        background: #f8f9fa;
+        margin-bottom: 8px;
+        border-radius: 6px;
+      }
+
+      .btn-delete {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 5px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      .btn-delete:hover {
+        background: #c82333;
+      }
+
+      @media (max-width: 768px) {
+        .form-row {
+          grid-template-columns: 1fr;
+        }
+
+        .expense-item,
+        .expense-header {
+          grid-template-columns: 1fr;
+          gap: 5px;
+        }
+
+        .expense-item > *,
+        .expense-header > * {
+          padding: 5px 0;
+        }
+
+        .expense-header {
+          display: none;
+        }
+
+        .expense-item > div:before {
+          content: attr(data-label);
+          font-weight: bold;
+          display: inline-block;
+          width: 100px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>💰 Expense Tracker</h1>
+        <p>Track and split expenses easily</p>
+      </div>
+
+      <div class="card">
+        <h2>Add New Expense</h2>
+        <form id="expense-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Person Name</label>
+              <input
+                type="text"
+                id="person"
+                placeholder="Enter name"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label>Amount ($)</label>
+              <input
+                type="number"
+                id="amount"
+                step="0.01"
+                placeholder="0.00"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Category</label>
+              <select id="category">
+                <option>Food</option>
+                <option>Transport</option>
+                <option>Entertainment</option>
+                <option>Utilities</option>
+                <option>Shopping</option>
+                <option>Health</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="date" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <input
+              type="text"
+              id="description"
+              placeholder="Optional description"
+            />
+          </div>
+          <button type="submit" class="btn">Add Expense</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Filter Expenses</h2>
+        <div class="filters">
+          <div class="form-group">
+            <label>Person</label>
+            <select id="filter-person">
+              <option value="">All People</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <select id="filter-category">
+              <option value="">All Categories</option>
+              <option>Food</option>
+              <option>Transport</option>
+              <option>Entertainment</option>
+              <option>Utilities</option>
+              <option>Shopping</option>
+              <option>Health</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Start Date</label>
+            <input type="date" id="start-date" />
+          </div>
+          <div class="form-group">
+            <label>End Date</label>
+            <input type="date" id="end-date" />
+          </div>
+        </div>
+        <button class="btn btn-secondary" onclick="clearFilters()">
+          Clear Filters
+        </button>
+      </div>
+
+      <div class="stats" id="stats">
+        <div class="stat-card">
+          <h3>Total Expenses</h3>
+          <div class="value" id="total-amount">$0.00</div>
+        </div>
+        <div class="stat-card">
+          <h3>Number of Transactions</h3>
+          <div class="value" id="transaction-count">0</div>
+        </div>
+        <div class="stat-card">
+          <h3>Average Transaction</h3>
+          <div class="value" id="average-amount">$0.00</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Person Totals</h2>
+        <div class="category-breakdown" id="person-totals">
+          <p style="text-align: center; color: #666">No expenses yet</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Category Breakdown</h2>
+        <div class="category-breakdown" id="category-totals">
+          <p style="text-align: center; color: #666">No expenses yet</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Recent Expenses</h2>
+        <div class="expense-list">
+          <div class="expense-header">
+            <div>Person</div>
+            <div>Amount</div>
+            <div>Category</div>
+            <div>Date</div>
+            <div>Description</div>
+            <div>Action</div>
+          </div>
+          <div id="expense-items">
+            <p style="text-align: center; color: #666; padding: 20px">
+              No expenses found. Add your first expense above!
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Initialize data
+      let expenses = [];
+
+      // Load from localStorage
+      function loadExpenses() {
+        const saved = localStorage.getItem("expenses");
+        if (saved) {
+          try {
+            expenses = JSON.parse(saved);
+          } catch (e) {
+            console.error("Error loading expenses:", e);
+            expenses = [];
+          }
+        }
+      }
+
+      // Save to localStorage
+      function saveExpenses() {
+        localStorage.setItem("expenses", JSON.stringify(expenses));
+      }
+
+      // Set today's date as default
+      function setDefaultDate() {
+        const dateInput = document.getElementById("date");
+        dateInput.value = new Date().toISOString().split("T")[0];
+      }
+
+      // Add expense
+      document
+        .getElementById("expense-form")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+
+          const person = document.getElementById("person").value;
+          const amount = parseFloat(document.getElementById("amount").value);
+          const category = document.getElementById("category").value;
+          const date = document.getElementById("date").value;
+          const description = document.getElementById("description").value;
+
+          if (!person || !amount) {
+            alert("Please fill in person name and amount");
+            return;
+          }
+
+          const expense = {
+            id: Date.now().toString(),
+            person,
+            amount,
+            category,
+            date,
+            description,
+            timestamp: new Date().toISOString(),
+          };
+
+          expenses.push(expense);
+          saveExpenses();
+
+          // Clear form (except person name)
+          document.getElementById("amount").value = "";
+          document.getElementById("description").value = "";
+          setDefaultDate();
+
+          updateDisplay();
+        });
+
+      // Delete expense
+      function deleteExpense(id) {
+        expenses = expenses.filter((exp) => exp.id !== id);
+        saveExpenses();
+        updateDisplay();
+      }
+
+      // Clear filters
+      function clearFilters() {
+        document.getElementById("filter-person").value = "";
+        document.getElementById("filter-category").value = "";
+        document.getElementById("start-date").value = "";
+        document.getElementById("end-date").value = "";
+        updateDisplay();
+      }
+
+      // Get filtered expenses
+      function getFilteredExpenses() {
+        const filterPerson = document.getElementById("filter-person").value;
+        const filterCategory = document.getElementById("filter-category").value;
+        const startDate = document.getElementById("start-date").value;
+        const endDate = document.getElementById("end-date").value;
+
+        return expenses.filter((expense) => {
+          if (filterPerson && expense.person !== filterPerson) return false;
+          if (filterCategory && expense.category !== filterCategory)
+            return false;
+          if (startDate && expense.date < startDate) return false;
+          if (endDate && expense.date > endDate) return false;
+          return true;
+        });
+      }
+
+      // Update display
+      function updateDisplay() {
+        const filtered = getFilteredExpenses();
+
+        // Update stats
+        const total = filtered.reduce((sum, exp) => sum + exp.amount, 0);
+        document.getElementById("total-amount").textContent =
+          "$" + total.toFixed(2);
+        document.getElementById("transaction-count").textContent =
+          filtered.length;
+        document.getElementById("average-amount").textContent =
+          "$" +
+          (filtered.length ? (total / filtered.length).toFixed(2) : "0.00");
+
+        // Update person filter dropdown
+        const uniquePeople = [...new Set(expenses.map((exp) => exp.person))];
+        const personFilter = document.getElementById("filter-person");
+        const currentValue = personFilter.value;
+        personFilter.innerHTML = '<option value="">All People</option>';
+        uniquePeople.forEach((person) => {
+          const option = document.createElement("option");
+          option.value = person;
+          option.textContent = person;
+          if (person === currentValue) option.selected = true;
+          personFilter.appendChild(option);
+        });
+
+        // Update person totals
+        const personTotals = {};
+        filtered.forEach((exp) => {
+          personTotals[exp.person] =
+            (personTotals[exp.person] || 0) + exp.amount;
+        });
+
+        const personTotalsDiv = document.getElementById("person-totals");
+        if (Object.keys(personTotals).length > 0) {
+          personTotalsDiv.innerHTML = Object.entries(personTotals)
+            .sort((a, b) => b[1] - a[1])
+            .map(
+              ([person, amount]) => `
+                        <div class="category-item">
+                            <span>${person}</span>
+                            <strong>$${amount.toFixed(2)}</strong>
+                        </div>
+                    `
+            )
+            .join("");
+        } else {
+          personTotalsDiv.innerHTML =
+            '<p style="text-align: center; color: #666;">No expenses yet</p>';
+        }
+
+        // Update category totals
+        const categoryTotals = {};
+        filtered.forEach((exp) => {
+          categoryTotals[exp.category] =
+            (categoryTotals[exp.category] || 0) + exp.amount;
+        });
+
+        const categoryTotalsDiv = document.getElementById("category-totals");
+        if (Object.keys(categoryTotals).length > 0) {
+          categoryTotalsDiv.innerHTML = Object.entries(categoryTotals)
+            .sort((a, b) => b[1] - a[1])
+            .map(
+              ([category, amount]) => `
+                        <div class="category-item">
+                            <span>${category}</span>
+                            <strong>$${amount.toFixed(2)}</strong>
+                        </div>
+                    `
+            )
+            .join("");
+        } else {
+          categoryTotalsDiv.innerHTML =
+            '<p style="text-align: center; color: #666;">No expenses yet</p>';
+        }
+
+        // Update expense list
+        const expenseItems = document.getElementById("expense-items");
+        if (filtered.length > 0) {
+          expenseItems.innerHTML = filtered
+            .slice()
+            .reverse()
+            .map(
+              (expense) => `
+                        <div class="expense-item">
+                            <div data-label="Person: ">${expense.person}</div>
+                            <div data-label="Amount: ">$${expense.amount.toFixed(
+                              2
+                            )}</div>
+                            <div data-label="Category: ">${
+                              expense.category
+                            }</div>
+                            <div data-label="Date: ">${expense.date}</div>
+                            <div data-label="Description: ">${
+                              expense.description || "-"
+                            }</div>
+                            <div>
+                                <button class="btn-delete" onclick="deleteExpense('${
+                                  expense.id
+                                }')">
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    `
+            )
+            .join("");
+        } else {
+          expenseItems.innerHTML = `
+                    <p style="text-align: center; color: #666; padding: 20px;">
+                        No expenses found. Add your first expense above!
+                    </p>
+                `;
+        }
+      }
+
+      // Add filter event listeners
+      document
+        .getElementById("filter-person")
+        .addEventListener("change", updateDisplay);
+      document
+        .getElementById("filter-category")
+        .addEventListener("change", updateDisplay);
+      document
+        .getElementById("start-date")
+        .addEventListener("change", updateDisplay);
+      document
+        .getElementById("end-date")
+        .addEventListener("change", updateDisplay);
+
+      // Initialize
+      loadExpenses();
+      setDefaultDate();
+      updateDisplay();
+    </script>
+  </body>
+</html>
