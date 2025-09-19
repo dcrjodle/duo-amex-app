@@ -1,13 +1,16 @@
 'use client'
-import './App.css'
+import './index.css'
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import Papa from 'papaparse'
 
-const categories = ['Food', 'Transport', 'Entertainment', 'Utilities', 'Shopping', 'Health', 'Other']
+const CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Utilities', 'Shopping', 'Health', 'Other']
+const FOOD_MERCHANTS = ['lidl', 'coop', 'ica', 'hemkop']
 
 export default function App() {
   return (
     <>
+    <DocumentReader/>
     <ExpenseTracker/>
     </>
   )
@@ -19,7 +22,7 @@ export function ExpenseTracker() {
   const [formData, setFormData] = useState({
     person: '',
     amount: '',
-    category: categories[0],
+    category: CATEGORIES[0],
     description: '',
     date: new Date().toISOString().split('T')[0],
   })
@@ -112,7 +115,7 @@ export function ExpenseTracker() {
         <select
           className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
           name="category" value={formData.category} onChange={handleChange}>
-          {categories.map((cat) => (
+          {CATEGORIES.map((cat) => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
@@ -203,4 +206,86 @@ export function ExpenseTracker() {
     </div>
   )
 }
+
+export function DocumentReader() {
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  function parseCsvDate(dateStr) {
+  if (!dateStr) return new Date().toISOString().split('T')[0] // fallback
+  const [month, day, year] = dateStr.split('/') // MM/DD/YYYY
+  return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`
+}
+
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    setMessage('')
+    setLoading(true)
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data
+
+        // Filter rows that match food merchants
+        const foodRows = rows.filter(row => {
+          const merchant = row.Beskrivning?.toLowerCase() || ''
+          return FOOD_MERCHANTS.some(f => merchant.includes(f))
+        })
+
+        if (foodRows.length === 0) {
+          setMessage('No FOOD entries found in CSV.')
+          setLoading(false)
+          return
+        }
+
+        try {
+          for (const row of foodRows) {
+            // Convert "17,90" to 17.9
+            const amount = parseFloat(row.Belopp.replace(',', '.'))
+
+            const { error } = await supabase.from('expenses').insert([{
+              person: row.Kortmedlem || 'me', // card member
+              amount,
+              category: 'Food',
+              description: row.Beskrivning,
+              date: parseCsvDate(row.Datum)
+            }])
+            if (error) throw error
+          }
+          setMessage(`Inserted ${foodRows.length} FOOD entries successfully.`)
+        } catch (err) {
+          console.error(err)
+          setMessage('Error inserting data into Supabase.')
+        } finally {
+          setLoading(false)
+        }
+      },
+      error: (err) => {
+        console.error(err)
+        setMessage('Failed to parse CSV.')
+        setLoading(false)
+      }
+    })
+  }
+
+  return (
+    <div className="bg-white p-4 rounded-md shadow-md max-w-md mx-auto mb-6">
+      <h2 className="text-lg font-semibold mb-3">Upload CSV for Food Expenses</h2>
+      <input
+        type="file"
+        accept=".csv"
+        onChange={handleFileUpload}
+        className="border p-2 rounded-md w-full mb-3"
+      />
+      {loading && <p className="text-indigo-600">Processing...</p>}
+      {message && <p className="text-gray-700">{message}</p>}
+    </div>
+  )
+}
+
 
