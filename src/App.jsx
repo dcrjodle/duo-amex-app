@@ -40,7 +40,7 @@ export default function App() {
         </h1>
 
         <ExpenseTracker expenses={expenses} setExpenses={setExpenses} />
-        <DocumentReader setExpenses={setExpenses} />
+        <DocumentReader setExpenses={setExpenses} expenses={expenses} />
       </div>
     </div>
   );
@@ -64,6 +64,7 @@ async function loadExpenses(setExpenses, setLoading) {
 
 export function ExpenseTracker({ expenses, setExpenses }) {
   const [loading, setLoading] = useState(true);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [formData, setFormData] = useState({
     person: PEOPLE[0],
     amount: "",
@@ -111,9 +112,50 @@ export function ExpenseTracker({ expenses, setExpenses }) {
     }
   }
 
+  async function deleteAllExpenses() {
+    if (!window.confirm("Are you sure you want to delete ALL expenses? This cannot be undone.")) {
+      return;
+    }
+    try {
+      const { error } = await supabase.from("expenses").delete().not("id", "is", null);
+      if (error) throw error;
+      await loadExpenses(setExpenses, setLoading);
+    } catch (error) {
+      console.error("Error deleting all expenses:", error);
+    }
+  }
+
   function handleChange(e) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   }
+
+  function handleSort(key) {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  }
+
+  const sortedExpenses = [...expenses].sort((a, b) => {
+    if (!sortConfig.key) return 0;
+
+    let aValue = a[sortConfig.key];
+    let bValue = b[sortConfig.key];
+
+    if (sortConfig.key === 'amount') {
+      aValue = parseFloat(aValue);
+      bValue = parseFloat(bValue);
+    }
+
+    if (aValue < bValue) {
+      return sortConfig.direction === 'asc' ? -1 : 1;
+    }
+    if (aValue > bValue) {
+      return sortConfig.direction === 'asc' ? 1 : -1;
+    }
+    return 0;
+  });
 
   // Calculate statistics
   const totalAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0);
@@ -269,6 +311,14 @@ export function ExpenseTracker({ expenses, setExpenses }) {
                         ).toFixed(2)} kr
                       </span>
                     </div>
+                    <div className="flex justify-between items-center mt-2 text-sm opacity-90">
+                      <span>joel gets:</span>
+                      <span className="font-semibold">
+                        {(
+                          amounts["Shared (40/60)"] * 0.4 + amounts["Shared (50/50)"] * 0.5
+                        ).toFixed(2)} kr
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -346,11 +396,21 @@ export function ExpenseTracker({ expenses, setExpenses }) {
 
       {/* Expenses Table */}
       <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-        <h2 className="text-xl font-semibold mb-4">All Expenses</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">All Expenses</h2>
+          {expenses.length > 0 && (
+            <button
+              onClick={deleteAllExpenses}
+              className="text-red-600 hover:text-white hover:bg-red-600 border border-red-600 px-4 py-2 rounded-lg transition text-sm font-medium"
+            >
+              Delete All
+            </button>
+          )}
+        </div>
 
         {/* Mobile Card View */}
         <div className="block sm:hidden space-y-4">
-          {expenses.map((exp, index) => (
+          {sortedExpenses.map((exp, index) => (
             <div key={exp.id} className="bg-gray-50 p-4 rounded-lg border">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">
@@ -401,20 +461,35 @@ export function ExpenseTracker({ expenses, setExpenses }) {
           <table className="min-w-full table-auto">
             <thead>
               <tr className="bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
+                <th
+                  onClick={() => handleSort('date')}
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  Date {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Person
+                <th
+                  onClick={() => handleSort('person')}
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  Person {sortConfig.key === 'person' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
+                <th
+                  onClick={() => handleSort('amount')}
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  Amount {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Category
+                <th
+                  onClick={() => handleSort('category')}
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  Category {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Description
+                <th
+                  onClick={() => handleSort('description')}
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  Description {sortConfig.key === 'description' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -422,7 +497,7 @@ export function ExpenseTracker({ expenses, setExpenses }) {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {expenses.map((exp, index) => (
+              {sortedExpenses.map((exp, index) => (
                 <tr
                   key={exp.id}
                   className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
@@ -477,16 +552,23 @@ export function ExpenseTracker({ expenses, setExpenses }) {
   );
 }
 
-export function DocumentReader({ setExpenses }) {
+export function DocumentReader({ setExpenses, expenses }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [step, setStep] = useState(1); // 1: upload, 2: categorize, 3: finish
+  const [parsedEntries, setParsedEntries] = useState([]);
+  const [personFilter, setPersonFilter] = useState("All");
 
   function parseCsvDate(dateStr) {
     if (!dateStr) return new Date().toISOString().split("T")[0]; // fallback
     const [month, day, year] = dateStr.split("/"); // MM/DD/YYYY
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
+
+  const uniqueCategories = expenses.length > 0
+    ? [...new Set(expenses.map(exp => exp.category))]
+    : CATEGORIES;
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -498,47 +580,30 @@ export function DocumentReader({ setExpenses }) {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results) => {
+      complete: (results) => {
         const rows = results.data;
 
-        // Filter rows that match food merchants
-        const foodRows = rows.filter((row) => {
-          const merchant = row.Beskrivning?.toLowerCase() || "";
-          return FOOD_MERCHANTS.some((f) => merchant.includes(f));
-        });
+        // Parse all rows (not just food merchants)
+        const entries = rows.map((row, index) => ({
+          id: index,
+          person: row.Kortmedlem || "Unknown",
+          amount: parseFloat(row.Belopp?.replace(",", ".")) || 0,
+          description: row.Beskrivning || "",
+          date: parseCsvDate(row.Datum),
+          category: uniqueCategories[0] || "Personal", // default to first available category
+          originalRow: row
+        })).filter(entry => entry.amount !== 0 && entry.description); // filter out invalid entries
 
-        if (foodRows.length === 0) {
-          setMessage("No food entries found in CSV.");
+        if (entries.length === 0) {
+          setMessage("No valid entries found in CSV.");
           setLoading(false);
           return;
         }
 
-        try {
-          for (const row of foodRows) {
-            // Convert "17,90" to 17.9
-            const amount = parseFloat(row.Belopp.replace(",", "."));
-
-            const { error } = await supabase.from("expenses").insert([
-              {
-                person: row.Kortmedlem || "me", // card member
-                amount,
-                category: "Shared (50/50)",
-                description: row.Beskrivning,
-                date: parseCsvDate(row.Datum),
-              },
-            ]);
-            if (error) throw error;
-            await loadExpenses(setExpenses, setLoading);
-          }
-          setMessage(
-            `Inserted ${foodRows.length} shared food entries successfully.`
-          );
-        } catch (err) {
-          console.error(err);
-          setMessage("Error inserting data into Supabase.");
-        } finally {
-          setLoading(false);
-        }
+        setParsedEntries(entries);
+        setStep(2);
+        setLoading(false);
+        setMessage(`Found ${entries.length} entries. Please categorize each one.`);
       },
       error: (err) => {
         console.error(err);
@@ -546,6 +611,53 @@ export function DocumentReader({ setExpenses }) {
         setLoading(false);
       },
     });
+  };
+
+  const updateEntryCategory = (entryId, category) => {
+    setParsedEntries(entries => 
+      entries.map(entry => 
+        entry.id === entryId ? { ...entry, category } : entry
+      )
+    );
+  };
+
+  const handleFinish = async () => {
+    setLoading(true);
+    setMessage("");
+
+    const entriesToAdd = personFilter === "All"
+      ? parsedEntries
+      : parsedEntries.filter(entry => entry.person === personFilter);
+
+    try {
+      for (const entry of entriesToAdd) {
+        const { error } = await supabase.from("expenses").insert([{
+          person: entry.person,
+          amount: entry.amount,
+          category: entry.category,
+          description: entry.description,
+          date: entry.date,
+        }]);
+        if (error) throw error;
+      }
+
+      await loadExpenses(setExpenses, setLoading);
+      setMessage(`Successfully added ${entriesToAdd.length} entries!`);
+      setStep(3);
+    } catch (err) {
+      console.error(err);
+      setMessage("Error adding entries to database.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetWizard = () => {
+    setStep(1);
+    setParsedEntries([]);
+    setMessage("");
+    setPersonFilter("All");
+    setIsModalOpen(false);
   };
 
   return (
@@ -562,34 +674,151 @@ export function DocumentReader({ setExpenses }) {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Upload CSV</h2>
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b">
+              <div>
+                <h2 className="text-lg font-semibold">CSV Import Wizard</h2>
+                <p className="text-sm text-gray-500">Step {step} of 3</p>
+              </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={resetWizard}
                 className="text-gray-500 hover:text-gray-700 text-xl"
               >
                 ✕
               </button>
             </div>
             
-            <p className="text-sm text-gray-600 mb-4">
-              Upload CSV for shared food expenses - works for {FOOD_MERCHANTS.join(", ")}
-            </p>
-            
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="border-2 border-dashed border-gray-300 p-3 rounded-lg w-full mb-3 cursor-pointer hover:bg-gray-50 transition text-sm"
-            />
-            
-            {loading && (
-              <p className="text-indigo-600 text-sm">Processing...</p>
-            )}
-            {message && (
-              <p className="text-gray-700 mt-2 text-sm">{message}</p>
-            )}
+            <div className="flex-1 overflow-auto p-6">
+              {step === 1 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Upload CSV File</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Upload your CSV file with expense data. All entries will be parsed and you can categorize each one.
+                  </p>
+                  
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    className="border-2 border-dashed border-gray-300 p-4 rounded-lg w-full mb-3 cursor-pointer hover:bg-gray-50 transition text-sm"
+                  />
+                </div>
+              )}
+
+              {step === 2 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Categorize Entries</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Review and categorize each entry before adding them to your expenses.
+                  </p>
+
+                  <div className="mb-4 flex gap-2">
+                    <button
+                      onClick={() => setPersonFilter("All")}
+                      className={`px-4 py-2 rounded-lg transition ${
+                        personFilter === "All"
+                          ? "bg-indigo-600 text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                    >
+                      All ({parsedEntries.length})
+                    </button>
+                    {PEOPLE.map((person) => (
+                      <button
+                        key={person}
+                        onClick={() => setPersonFilter(person)}
+                        className={`px-4 py-2 rounded-lg transition ${
+                          personFilter === person
+                            ? "bg-indigo-600 text-white"
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        }`}
+                      >
+                        {person.split(" ")[0]} ({parsedEntries.filter(e => e.person === person).length})
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {parsedEntries.filter(entry =>
+                      personFilter === "All" || entry.person === personFilter
+                    ).map((entry) => (
+                      <div key={entry.id} className="border rounded-lg p-4 bg-gray-50">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <div className="font-semibold">{entry.amount.toFixed(2)} kr</div>
+                            <div className="text-sm text-gray-600">{entry.description}</div>
+                            <div className="text-xs text-gray-500">{entry.date} • {entry.person}</div>
+                          </div>
+                          <select
+                            value={entry.category}
+                            onChange={(e) => updateEntryCategory(entry.id, e.target.value)}
+                            className="ml-4 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          >
+                            {uniqueCategories.map((cat) => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="text-center">
+                  <div className="text-green-600 text-4xl mb-4">✓</div>
+                  <h3 className="text-lg font-semibold mb-2">Import Complete!</h3>
+                  <p className="text-gray-600">All entries have been successfully added to your expenses.</p>
+                </div>
+              )}
+
+              {loading && (
+                <div className="flex items-center justify-center py-4">
+                  <div className="text-indigo-600">Processing...</div>
+                </div>
+              )}
+              
+              {message && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                  {message}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t p-6 flex justify-between">
+              <div>
+                {step > 1 && step < 3 && (
+                  <button
+                    onClick={() => setStep(step - 1)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition"
+                  >
+                    ← Back
+                  </button>
+                )}
+              </div>
+              <div>
+                {step === 2 && (
+                  <button
+                    onClick={handleFinish}
+                    disabled={loading}
+                    className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg transition"
+                  >
+                    {personFilter === "All"
+                      ? `Add All ${parsedEntries.length} Entries`
+                      : `Add ${parsedEntries.filter(e => e.person === personFilter).length} Entries (${personFilter.split(" ")[0]})`}
+                  </button>
+                )}
+                {step === 3 && (
+                  <button
+                    onClick={resetWizard}
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition"
+                  >
+                    Done
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
