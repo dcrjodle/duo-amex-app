@@ -32,15 +32,28 @@ const COLORS = [
 
 export default function App() {
   const [expenses, setExpenses] = useState([]);
-  return (
-    <div className="min-h-screen p-2 sm:p-4">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 sm:mb-8">
-          Expense Tracker
-        </h1>
+  const [darkMode, setDarkMode] = useState(false);
 
-        <ExpenseTracker expenses={expenses} setExpenses={setExpenses} />
-        <DocumentReader setExpenses={setExpenses} expenses={expenses} />
+  return (
+    <div className={darkMode ? "dark" : ""}>
+      <div className="min-h-screen p-2 sm:p-4 bg-gray-50 dark:bg-gray-900 transition-colors">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-between items-center mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              Expense Tracker
+            </h1>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? "☀️" : "🌙"}
+            </button>
+          </div>
+
+          <ExpenseTracker expenses={expenses} setExpenses={setExpenses} />
+          <DocumentReader setExpenses={setExpenses} expenses={expenses} />
+        </div>
       </div>
     </div>
   );
@@ -65,6 +78,10 @@ async function loadExpenses(setExpenses, setLoading) {
 export function ExpenseTracker({ expenses, setExpenses }) {
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [personFilter, setPersonFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({});
   const [formData, setFormData] = useState({
     person: PEOPLE[0],
     amount: "",
@@ -125,6 +142,37 @@ export function ExpenseTracker({ expenses, setExpenses }) {
     }
   }
 
+  function startEdit(expense) {
+    setEditingId(expense.id);
+    setEditData({ ...expense });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditData({});
+  }
+
+  async function saveEdit() {
+    try {
+      const { error } = await supabase
+        .from("expenses")
+        .update({
+          person: editData.person,
+          amount: parseFloat(editData.amount),
+          category: editData.category,
+          description: editData.description,
+          date: editData.date,
+        })
+        .eq("id", editingId);
+      if (error) throw error;
+      await loadExpenses(setExpenses, setLoading);
+      setEditingId(null);
+      setEditData({});
+    } catch (error) {
+      console.error("Error updating expense:", error);
+    }
+  }
+
   function handleChange(e) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   }
@@ -137,7 +185,15 @@ export function ExpenseTracker({ expenses, setExpenses }) {
     setSortConfig({ key, direction });
   }
 
-  const sortedExpenses = [...expenses].sort((a, b) => {
+  const uniqueCategories = [...new Set(expenses.map(exp => exp.category))];
+
+  const filteredExpenses = expenses.filter(exp => {
+    const personMatch = personFilter === "All" || exp.person === personFilter;
+    const categoryMatch = categoryFilter === "All" || exp.category === categoryFilter;
+    return personMatch && categoryMatch;
+  });
+
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => {
     if (!sortConfig.key) return 0;
 
     let aValue = a[sortConfig.key];
@@ -206,12 +262,12 @@ export function ExpenseTracker({ expenses, setExpenses }) {
   return (
     <div className="space-y-8">
       {/* Add Expense Form */}
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h2 className="text-xl font-semibold mb-4">Add New Expense</h2>
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors">
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Add New Expense</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <select
-              className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               name="person"
               value={formData.person}
               onChange={handleChange}
@@ -223,7 +279,7 @@ export function ExpenseTracker({ expenses, setExpenses }) {
               ))}
             </select>
             <input
-              className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               type="number"
               name="amount"
               placeholder="Amount"
@@ -232,7 +288,7 @@ export function ExpenseTracker({ expenses, setExpenses }) {
               onChange={handleChange}
             />
             <select
-              className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               name="category"
               value={formData.category}
               onChange={handleChange}
@@ -244,7 +300,7 @@ export function ExpenseTracker({ expenses, setExpenses }) {
               ))}
             </select>
             <input
-              className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:col-span-2 lg:col-span-1"
+              className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:col-span-2 lg:col-span-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               type="text"
               name="description"
               placeholder="Description"
@@ -252,7 +308,7 @@ export function ExpenseTracker({ expenses, setExpenses }) {
               onChange={handleChange}
             />
             <input
-              className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               type="date"
               name="date"
               value={formData.date}
@@ -268,17 +324,17 @@ export function ExpenseTracker({ expenses, setExpenses }) {
         </form>
       </div>
       {/* Most Important Stats - Shared Expenses by Person */}
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Shared Expenses
         </h2>
-        <p className="mb-6">Expenses that should be split between partners.</p>
+        <p className="mb-6 text-gray-600 dark:text-gray-400">Expenses that should be split between partners.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {sharedExpensesByPersonEntries.length > 0 &&
             sharedExpensesByPersonEntries.map(([person, amounts]) => (
               <div
                 key={person}
-                className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-xl shadow-lg"
+                className={`bg-gradient-to-br ${person === 'ANA TRAMOSLJANIN' ? 'from-pink-500 to-rose-600' : 'from-blue-500 to-indigo-600'} text-white p-6 rounded-xl shadow-lg`}
               >
                 <h3 className="text-lg font-semibold mb-4">
                   {person.split(" ")[0] === "CARL"
@@ -329,24 +385,29 @@ export function ExpenseTracker({ expenses, setExpenses }) {
         </div>
       </div>
 
-      {/* Dashboard Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
-          <h3 className="text-sm opacity-90 font-medium">Total Expenses</h3>
-          <p className="text-3xl font-bold mt-2">{totalAmount.toFixed(2)} kr</p>
-        </div>
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
-          <h3 className="text-sm opacity-90 font-medium">Transactions</h3>
-          <p className="text-3xl font-bold mt-2">{expenses.length}</p>
-        </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
-          <h3 className="text-sm opacity-90 font-medium">Average</h3>
-          <p className="text-3xl font-bold mt-2">
-            {expenses.length
-              ? (totalAmount / expenses.length).toFixed(2)
-              : "0.00"} kr
-          </p>
-        </div>
+      {/* Spending Trends Chart */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors">
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Spending Over Time</h2>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={(() => {
+            const sorted = [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const grouped = sorted.reduce((acc, exp) => {
+              const date = exp.date;
+              if (!acc[date]) {
+                acc[date] = { date, amount: 0 };
+              }
+              acc[date].amount += exp.amount;
+              return acc;
+            }, {});
+            return Object.values(grouped);
+          })()}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip formatter={(value) => [`${value.toFixed(2)} kr`, 'Amount']} />
+            <Bar dataKey="amount" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Charts */}
@@ -395,9 +456,9 @@ export function ExpenseTracker({ expenses, setExpenses }) {
       </div> */}
 
       {/* Expenses Table */}
-      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+      <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-xl shadow-lg transition-colors">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">All Expenses</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">All Expenses</h2>
           {expenses.length > 0 && (
             <button
               onClick={deleteAllExpenses}
@@ -408,50 +469,109 @@ export function ExpenseTracker({ expenses, setExpenses }) {
           )}
         </div>
 
+        {/* Filters */}
+        <div className="mb-4 flex flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Person:</label>
+            <select
+              aria-label="Person Filter"
+              value={personFilter}
+              onChange={(e) => setPersonFilter(e.target.value)}
+              className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="All">All ({expenses.length})</option>
+              {PEOPLE.map((person) => (
+                <option key={person} value={person}>
+                  {person.split(" ")[0]} ({expenses.filter(e => e.person === person).length})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Category:</label>
+            <select
+              aria-label="Category Filter"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="All">All ({expenses.length})</option>
+              {uniqueCategories.map((category) => (
+                <option key={category} value={category}>
+                  {category} ({expenses.filter(e => e.category === category).length})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {(personFilter !== "All" || categoryFilter !== "All") && (
+            <button
+              onClick={() => {
+                setPersonFilter("All");
+                setCategoryFilter("All");
+              }}
+              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              Clear Filters
+            </button>
+          )}
+
+          <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
+            Showing {sortedExpenses.length} of {expenses.length} expenses
+          </div>
+        </div>
+
         {/* Mobile Card View */}
         <div className="block sm:hidden space-y-4">
           {sortedExpenses.map((exp, index) => (
-            <div key={exp.id} className="bg-gray-50 p-4 rounded-lg border">
+            <div key={exp.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">
-                  <div className="text-sm text-gray-500 mb-1">{exp.date}</div>
-                  <div className="font-semibold text-lg">
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{exp.date}</div>
+                  <div className="font-semibold text-lg text-gray-900 dark:text-white">
                     {exp.amount.toFixed(2)} kr
                   </div>
                 </div>
                 <button
+                  onClick={() => startEdit(exp)}
+                  className="text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 dark:hover:bg-indigo-900 p-2 rounded transition mr-2"
+                >
+                  ✎
+                </button>
+                <button
                   onClick={() => deleteExpense(exp.id)}
-                  className="text-red-600 hover:text-red-900 hover:bg-red-50 p-2 rounded transition"
+                  className="text-red-600 hover:text-red-900 hover:bg-red-50 dark:hover:bg-red-900 p-2 rounded transition"
                 >
                   ✕
                 </button>
               </div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {exp.person.split(" ")[0]}
                 </span>
                 <span
                   className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                     exp.category === "Personal"
-                      ? "bg-blue-100 text-blue-800"
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                       : exp.category === "Shared (40/60)"
-                      ? "bg-green-100 text-green-800"
+                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                       : exp.category === "Shared (50/50)"
-                      ? "bg-purple-100 text-purple-800"
-                      : "bg-gray-100 text-gray-800"
+                      ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                   }`}
                 >
                   {exp.category}
                 </span>
               </div>
               {exp.description && (
-                <div className="text-sm text-gray-600">{exp.description}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">{exp.description}</div>
               )}
             </div>
           ))}
-          {expenses.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No expenses yet
+          {sortedExpenses.length === 0 && (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              {expenses.length === 0 ? "No expenses yet" : "No expenses match the current filters"}
             </div>
           )}
         </div>
@@ -460,90 +580,164 @@ export function ExpenseTracker({ expenses, setExpenses }) {
         <div className="hidden sm:block overflow-x-auto">
           <table className="min-w-full table-auto">
             <thead>
-              <tr className="bg-gray-50">
+              <tr className="bg-gray-50 dark:bg-gray-700">
                 <th
                   onClick={() => handleSort('date')}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
                   Date {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
                 <th
                   onClick={() => handleSort('person')}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
                   Person {sortConfig.key === 'person' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
                 <th
                   onClick={() => handleSort('amount')}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
                   Amount {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
                 <th
                   onClick={() => handleSort('category')}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
                   Category {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
                 <th
                   onClick={() => handleSort('description')}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
                   Description {sortConfig.key === 'description' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {sortedExpenses.map((exp, index) => (
                 <tr
                   key={exp.id}
-                  className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                  className={index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-750"}
                 >
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {exp.date}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {exp.person.split(" ")[0]}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                    {exp.amount.toFixed(2)} kr
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        exp.category === "Personal"
-                          ? "bg-blue-100 text-blue-800"
-                          : exp.category === "Shared (40/60)"
-                          ? "bg-green-100 text-green-800"
-                          : exp.category === "Shared (50/50)"
-                          ? "bg-purple-100 text-purple-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {exp.category}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">
-                    {exp.description || "-"}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => deleteExpense(exp.id)}
-                      className="text-red-600 hover:text-red-900 hover:bg-red-50 px-3 py-1 rounded transition"
-                    >
-                      Delete
-                    </button>
-                  </td>
+                  {editingId === exp.id ? (
+                    <>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <input
+                          type="date"
+                          value={editData.date}
+                          onChange={(e) => setEditData({ ...editData, date: e.target.value })}
+                          className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <select
+                          value={editData.person}
+                          onChange={(e) => setEditData({ ...editData, person: e.target.value })}
+                          className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                          {PEOPLE.map((person) => (
+                            <option key={person} value={person}>{person.split(" ")[0]}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editData.amount}
+                          onChange={(e) => setEditData({ ...editData, amount: e.target.value })}
+                          className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm w-24 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <select
+                          value={editData.category}
+                          onChange={(e) => setEditData({ ...editData, category: e.target.value })}
+                          className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                          {CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-4 text-sm">
+                        <input
+                          type="text"
+                          value={editData.description}
+                          onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                          className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <button
+                          onClick={saveEdit}
+                          className="text-green-600 hover:text-green-900 hover:bg-green-50 dark:hover:bg-green-900 px-3 py-1 rounded transition"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="text-gray-600 hover:text-gray-900 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-1 rounded transition"
+                        >
+                          Cancel
+                        </button>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                        {exp.date}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                        {exp.person.split(" ")[0]}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {exp.amount.toFixed(2)} kr
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            exp.category === "Personal"
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                              : exp.category === "Shared (40/60)"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              : exp.category === "Shared (50/50)"
+                              ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                              : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                          }`}
+                        >
+                          {exp.category}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-900 dark:text-gray-100">
+                        {exp.description || "-"}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <button
+                          onClick={() => startEdit(exp)}
+                          className="text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 dark:hover:bg-indigo-900 px-3 py-1 rounded transition"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteExpense(exp.id)}
+                          className="text-red-600 hover:text-red-900 hover:bg-red-50 dark:hover:bg-red-900 px-3 py-1 rounded transition"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
-          {expenses.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No expenses yet
+          {sortedExpenses.length === 0 && (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              {expenses.length === 0 ? "No expenses yet" : "No expenses match the current filters"}
             </div>
           )}
         </div>
@@ -674,15 +868,15 @@ export function DocumentReader({ setExpenses, expenses }) {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b dark:border-gray-700">
               <div>
-                <h2 className="text-lg font-semibold">CSV Import Wizard</h2>
-                <p className="text-sm text-gray-500">Step {step} of 3</p>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">CSV Import Wizard</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Step {step} of 3</p>
               </div>
               <button
                 onClick={resetWizard}
-                className="text-gray-500 hover:text-gray-700 text-xl"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl"
               >
                 ✕
               </button>
@@ -691,8 +885,8 @@ export function DocumentReader({ setExpenses, expenses }) {
             <div className="flex-1 overflow-auto p-6">
               {step === 1 && (
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">Upload CSV File</h3>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Upload CSV File</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Upload your CSV file with expense data. All entries will be parsed and you can categorize each one.
                   </p>
                   
@@ -700,15 +894,15 @@ export function DocumentReader({ setExpenses, expenses }) {
                     type="file"
                     accept=".csv"
                     onChange={handleFileUpload}
-                    className="border-2 border-dashed border-gray-300 p-4 rounded-lg w-full mb-3 cursor-pointer hover:bg-gray-50 transition text-sm"
+                    className="border-2 border-dashed border-gray-300 dark:border-gray-600 p-4 rounded-lg w-full mb-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
               )}
 
               {step === 2 && (
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">Categorize Entries</h3>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Categorize Entries</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Review and categorize each entry before adding them to your expenses.
                   </p>
 
@@ -718,7 +912,7 @@ export function DocumentReader({ setExpenses, expenses }) {
                       className={`px-4 py-2 rounded-lg transition ${
                         personFilter === "All"
                           ? "bg-indigo-600 text-white"
-                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                          : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                       }`}
                     >
                       All ({parsedEntries.length})
@@ -730,7 +924,7 @@ export function DocumentReader({ setExpenses, expenses }) {
                         className={`px-4 py-2 rounded-lg transition ${
                           personFilter === person
                             ? "bg-indigo-600 text-white"
-                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                            : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                         }`}
                       >
                         {person.split(" ")[0]} ({parsedEntries.filter(e => e.person === person).length})
@@ -742,17 +936,17 @@ export function DocumentReader({ setExpenses, expenses }) {
                     {parsedEntries.filter(entry =>
                       personFilter === "All" || entry.person === personFilter
                     ).map((entry) => (
-                      <div key={entry.id} className="border rounded-lg p-4 bg-gray-50">
+                      <div key={entry.id} className="border dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700">
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex-1">
-                            <div className="font-semibold">{entry.amount.toFixed(2)} kr</div>
-                            <div className="text-sm text-gray-600">{entry.description}</div>
-                            <div className="text-xs text-gray-500">{entry.date} • {entry.person}</div>
+                            <div className="font-semibold text-gray-900 dark:text-white">{entry.amount.toFixed(2)} kr</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{entry.description}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{entry.date} • {entry.person}</div>
                           </div>
                           <select
                             value={entry.category}
                             onChange={(e) => updateEntryCategory(entry.id, e.target.value)}
-                            className="ml-4 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            className="ml-4 p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white dark:bg-gray-600 text-gray-900 dark:text-white"
                           >
                             {uniqueCategories.map((cat) => (
                               <option key={cat} value={cat}>{cat}</option>
@@ -768,25 +962,25 @@ export function DocumentReader({ setExpenses, expenses }) {
               {step === 3 && (
                 <div className="text-center">
                   <div className="text-green-600 text-4xl mb-4">✓</div>
-                  <h3 className="text-lg font-semibold mb-2">Import Complete!</h3>
-                  <p className="text-gray-600">All entries have been successfully added to your expenses.</p>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Import Complete!</h3>
+                  <p className="text-gray-600 dark:text-gray-400">All entries have been successfully added to your expenses.</p>
                 </div>
               )}
 
               {loading && (
                 <div className="flex items-center justify-center py-4">
-                  <div className="text-indigo-600">Processing...</div>
+                  <div className="text-indigo-600 dark:text-indigo-400">Processing...</div>
                 </div>
               )}
               
               {message && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded text-sm text-blue-800 dark:text-blue-200">
                   {message}
                 </div>
               )}
             </div>
 
-            <div className="border-t p-6 flex justify-between">
+            <div className="border-t dark:border-gray-700 p-6 flex justify-between">
               <div>
                 {step > 1 && step < 3 && (
                   <button
