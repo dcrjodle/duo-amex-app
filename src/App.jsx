@@ -224,16 +224,20 @@ export function ExpenseTracker({ expenses, setExpenses }) {
     return acc;
   }, {});
 
-  // Shared expenses totals by person
+  // Shared expenses totals by person (including personal for Ana)
   const sharedExpensesByPerson = expenses.reduce((acc, exp) => {
     if (!acc[exp.person]) {
-      acc[exp.person] = { "Shared (40/60)": 0, "Shared (50/50)": 0 };
+      acc[exp.person] = { "Shared (40/60)": 0, "Shared (50/50)": 0, "Personal": 0 };
     }
     if (
       exp.category === "Shared (40/60)" ||
       exp.category === "Shared (50/50)"
     ) {
       acc[exp.person][exp.category] += exp.amount;
+    }
+    // Track personal expenses for Ana only
+    if (exp.category === "Personal" && exp.person === "ANA TRAMOSLJANIN") {
+      acc[exp.person]["Personal"] += exp.amount;
     }
     return acc;
   }, {});
@@ -326,59 +330,76 @@ export function ExpenseTracker({ expenses, setExpenses }) {
       {/* Most Important Stats - Shared Expenses by Person */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          Shared Expenses
+          Expense Summary
         </h2>
         <p className="mb-6 text-gray-600 dark:text-gray-400">Expenses that should be split between partners.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {sharedExpensesByPersonEntries.length > 0 &&
-            sharedExpensesByPersonEntries.map(([person, amounts]) => (
-              <div
-                key={person}
-                className={`bg-gradient-to-br ${person === 'ANA TRAMOSLJANIN' ? 'from-pink-500 to-rose-600' : 'from-blue-500 to-indigo-600'} text-white p-6 rounded-xl shadow-lg`}
-              >
-                <h3 className="text-lg font-semibold mb-4">
-                  {person.split(" ")[0] === "CARL"
-                    ? "JOEL"
-                    : person.split(" ")[0]}
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-2">
-                      💰 Shared (40/60)
-                    </span>
-                    <span className="text-2xl font-bold">
-                      {amounts["Shared (40/60)"].toFixed(2)} kr
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-2">
-                      🤝 Shared (50/50)
-                    </span>
-                    <span className="text-2xl font-bold">
-                      {amounts["Shared (50/50)"].toFixed(2)} kr
-                    </span>
-                  </div>
-                  <div className="border-t border-white/20 pt-2">
+            sharedExpensesByPersonEntries.map(([person, amounts]) => {
+              const isAna = person === 'ANA TRAMOSLJANIN';
+              const isJoel = person === 'CARL OLOF JOEL BYSTEDT';
+              // Don't show Joel's personal expenses in the card
+              const showPersonal = isAna && amounts["Personal"] > 0;
+              const totalShared = amounts["Shared (40/60)"] + amounts["Shared (50/50)"];
+              const totalAll = totalShared + (showPersonal ? amounts["Personal"] : 0);
+
+              return (
+                <div
+                  key={person}
+                  className={`bg-gradient-to-br ${isAna ? 'from-pink-500 to-rose-600' : 'from-blue-500 to-indigo-600'} text-white p-6 rounded-xl shadow-lg`}
+                >
+                  <h3 className="text-lg font-semibold mb-4">
+                    {person.split(" ")[0] === "CARL" ? "JOEL" : person.split(" ")[0]}
+                  </h3>
+                  <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold">Total</span>
-                      <span className="text-3xl font-bold">
-                        {(
-                          amounts["Shared (40/60)"] + amounts["Shared (50/50)"]
-                        ).toFixed(2)} kr
+                      <span className="flex items-center gap-2">
+                        💰 Shared (40/60)
+                      </span>
+                      <span className="text-2xl font-bold">
+                        {amounts["Shared (40/60)"].toFixed(2)} kr
                       </span>
                     </div>
-                    <div className="flex justify-between items-center mt-2 text-sm opacity-90">
-                      <span>joel gets:</span>
-                      <span className="font-semibold">
-                        {(
-                          amounts["Shared (40/60)"] * 0.4 + amounts["Shared (50/50)"] * 0.5
-                        ).toFixed(2)} kr
+                    <div className="flex justify-between items-center">
+                      <span className="flex items-center gap-2">
+                        🤝 Shared (50/50)
                       </span>
+                      <span className="text-2xl font-bold">
+                        {amounts["Shared (50/50)"].toFixed(2)} kr
+                      </span>
+                    </div>
+                    {showPersonal && (
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          🛍️ Personal
+                        </span>
+                        <span className="text-2xl font-bold">
+                          {amounts["Personal"].toFixed(2)} kr
+                        </span>
+                      </div>
+                    )}
+                    <div className="border-t border-white/20 pt-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold">Total</span>
+                        <span className="text-3xl font-bold">
+                          {totalAll.toFixed(2)} kr
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center mt-2 text-sm opacity-90">
+                        <span>joel gets:</span>
+                        <span className="font-semibold">
+                          {(
+                            amounts["Shared (40/60)"] * 0.4 +
+                            amounts["Shared (50/50)"] * 0.5 +
+                            (isAna ? amounts["Personal"] : 0)
+                          ).toFixed(2)} kr
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           {!sharedExpensesByPersonEntries.length && (
             <div className=" text-gray-500 mb-2">No shared expenses found.</div>
           )}
