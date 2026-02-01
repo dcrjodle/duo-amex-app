@@ -3,6 +3,7 @@ import "./index.css";
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
 import Papa from "papaparse";
+import { Lock, LogOut } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -30,9 +31,115 @@ const COLORS = [
   "#6B7280",
 ];
 
+function Login({ onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const { data, error: dbError } = await supabase
+        .from("admin_users")
+        .select("*")
+        .eq("email", email)
+        .eq("password_hash", password)
+        .single();
+
+      if (dbError || !data) {
+        setError("Invalid email or password");
+        setLoading(false);
+        return;
+      }
+
+      localStorage.setItem(
+        "admin-user",
+        JSON.stringify({ id: data.id, email: data.email }),
+      );
+      onLogin({ id: data.id, email: data.email });
+    } catch (err) {
+      setError("Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+        <div className="flex items-center justify-center mb-6">
+          <div className="bg-indigo-100 p-3 rounded-full">
+            <Lock className="w-8 h-8 text-indigo-600" />
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">
+          Admin Login
+        </h1>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            required
+          />
+          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition font-semibold disabled:bg-gray-400"
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [darkMode, setDarkMode] = useState(false);
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("admin-user");
+    if (stored) {
+      setUser(JSON.parse(stored));
+    }
+    setCheckingAuth(false);
+  }, []);
+
+  function handleLogout() {
+    localStorage.removeItem("admin-user");
+    setUser(null);
+  }
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLogin={setUser} />;
+  }
 
   return (
     <div className={darkMode ? "dark" : ""}>
@@ -42,13 +149,22 @@ export default function App() {
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
               Expense Tracker
             </h1>
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-              aria-label="Toggle dark mode"
-            >
-              {darkMode ? "☀️" : "🌙"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                aria-label="Toggle dark mode"
+              >
+                {darkMode ? "☀️" : "🌙"}
+              </button>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-red-500 hover:text-white transition"
+                aria-label="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           <ExpenseTracker expenses={expenses} setExpenses={setExpenses} />
@@ -77,7 +193,7 @@ async function loadExpenses(setExpenses, setLoading) {
 
 export function ExpenseTracker({ expenses, setExpenses }) {
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [personFilter, setPersonFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [editingId, setEditingId] = useState(null);
@@ -130,11 +246,18 @@ export function ExpenseTracker({ expenses, setExpenses }) {
   }
 
   async function deleteAllExpenses() {
-    if (!window.confirm("Are you sure you want to delete ALL expenses? This cannot be undone.")) {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete ALL expenses? This cannot be undone.",
+      )
+    ) {
       return;
     }
     try {
-      const { error } = await supabase.from("expenses").delete().not("id", "is", null);
+      const { error } = await supabase
+        .from("expenses")
+        .delete()
+        .not("id", "is", null);
       if (error) throw error;
       await loadExpenses(setExpenses, setLoading);
     } catch (error) {
@@ -178,18 +301,19 @@ export function ExpenseTracker({ expenses, setExpenses }) {
   }
 
   function handleSort(key) {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
     }
     setSortConfig({ key, direction });
   }
 
-  const uniqueCategories = [...new Set(expenses.map(exp => exp.category))];
+  const uniqueCategories = [...new Set(expenses.map((exp) => exp.category))];
 
-  const filteredExpenses = expenses.filter(exp => {
+  const filteredExpenses = expenses.filter((exp) => {
     const personMatch = personFilter === "All" || exp.person === personFilter;
-    const categoryMatch = categoryFilter === "All" || exp.category === categoryFilter;
+    const categoryMatch =
+      categoryFilter === "All" || exp.category === categoryFilter;
     return personMatch && categoryMatch;
   });
 
@@ -199,16 +323,16 @@ export function ExpenseTracker({ expenses, setExpenses }) {
     let aValue = a[sortConfig.key];
     let bValue = b[sortConfig.key];
 
-    if (sortConfig.key === 'amount') {
+    if (sortConfig.key === "amount") {
       aValue = parseFloat(aValue);
       bValue = parseFloat(bValue);
     }
 
     if (aValue < bValue) {
-      return sortConfig.direction === 'asc' ? -1 : 1;
+      return sortConfig.direction === "asc" ? -1 : 1;
     }
     if (aValue > bValue) {
-      return sortConfig.direction === 'asc' ? 1 : -1;
+      return sortConfig.direction === "asc" ? 1 : -1;
     }
     return 0;
   });
@@ -227,7 +351,11 @@ export function ExpenseTracker({ expenses, setExpenses }) {
   // Shared expenses totals by person (including personal for Ana)
   const sharedExpensesByPerson = expenses.reduce((acc, exp) => {
     if (!acc[exp.person]) {
-      acc[exp.person] = { "Shared (40/60)": 0, "Shared (50/50)": 0, "Personal": 0 };
+      acc[exp.person] = {
+        "Shared (40/60)": 0,
+        "Shared (50/50)": 0,
+        Personal: 0,
+      };
     }
     if (
       exp.category === "Shared (40/60)" ||
@@ -248,14 +376,14 @@ export function ExpenseTracker({ expenses, setExpenses }) {
       name: category,
       value: amount,
       amount: amount,
-    })
+    }),
   );
 
   const personChartData = Object.entries(personTotals).map(
     ([person, amount]) => ({
       name: person.split(" ")[0], // First name only for chart
       amount: amount,
-    })
+    }),
   );
 
   if (loading)
@@ -267,7 +395,9 @@ export function ExpenseTracker({ expenses, setExpenses }) {
     <div className="space-y-8">
       {/* Add Expense Form */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Add New Expense</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+          Add New Expense
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <select
@@ -332,24 +462,30 @@ export function ExpenseTracker({ expenses, setExpenses }) {
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Expense Summary
         </h2>
-        <p className="mb-6 text-gray-600 dark:text-gray-400">Expenses that should be split between partners.</p>
+        <p className="mb-6 text-gray-600 dark:text-gray-400">
+          Expenses that should be split between partners.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {sharedExpensesByPersonEntries.length > 0 &&
             sharedExpensesByPersonEntries.map(([person, amounts]) => {
-              const isAna = person === 'ANA TRAMOSLJANIN';
-              const isJoel = person === 'CARL OLOF JOEL BYSTEDT';
+              const isAna = person === "ANA TRAMOSLJANIN";
+              const isJoel = person === "CARL OLOF JOEL BYSTEDT";
               // Don't show Joel's personal expenses in the card
               const showPersonal = isAna && amounts["Personal"] > 0;
-              const totalShared = amounts["Shared (40/60)"] + amounts["Shared (50/50)"];
-              const totalAll = totalShared + (showPersonal ? amounts["Personal"] : 0);
+              const totalShared =
+                amounts["Shared (40/60)"] + amounts["Shared (50/50)"];
+              const totalAll =
+                totalShared + (showPersonal ? amounts["Personal"] : 0);
 
               return (
                 <div
                   key={person}
-                  className={`bg-gradient-to-br ${isAna ? 'from-pink-500 to-rose-600' : 'from-blue-500 to-indigo-600'} text-white p-6 rounded-xl shadow-lg`}
+                  className={`bg-gradient-to-br ${isAna ? "from-pink-500 to-rose-600" : "from-blue-500 to-indigo-600"} text-white p-6 rounded-xl shadow-lg`}
                 >
                   <h3 className="text-lg font-semibold mb-4">
-                    {person.split(" ")[0] === "CARL" ? "JOEL" : person.split(" ")[0]}
+                    {person.split(" ")[0] === "CARL"
+                      ? "JOEL"
+                      : person.split(" ")[0]}
                   </h3>
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
@@ -392,7 +528,8 @@ export function ExpenseTracker({ expenses, setExpenses }) {
                             amounts["Shared (40/60)"] * 0.4 +
                             amounts["Shared (50/50)"] * 0.5 +
                             (isAna ? amounts["Personal"] : 0)
-                          ).toFixed(2)} kr
+                          ).toFixed(2)}{" "}
+                          kr
                         </span>
                       </div>
                     </div>
@@ -408,24 +545,32 @@ export function ExpenseTracker({ expenses, setExpenses }) {
 
       {/* Spending Trends Chart */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Spending Over Time</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+          Spending Over Time
+        </h2>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={(() => {
-            const sorted = [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date));
-            const grouped = sorted.reduce((acc, exp) => {
-              const date = exp.date;
-              if (!acc[date]) {
-                acc[date] = { date, amount: 0 };
-              }
-              acc[date].amount += exp.amount;
-              return acc;
-            }, {});
-            return Object.values(grouped);
-          })()}>
+          <BarChart
+            data={(() => {
+              const sorted = [...expenses].sort(
+                (a, b) => new Date(a.date) - new Date(b.date),
+              );
+              const grouped = sorted.reduce((acc, exp) => {
+                const date = exp.date;
+                if (!acc[date]) {
+                  acc[date] = { date, amount: 0 };
+                }
+                acc[date].amount += exp.amount;
+                return acc;
+              }, {});
+              return Object.values(grouped);
+            })()}
+          >
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(value) => [`${value.toFixed(2)} kr`, 'Amount']} />
+            <Tooltip
+              formatter={(value) => [`${value.toFixed(2)} kr`, "Amount"]}
+            />
             <Bar dataKey="amount" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -479,7 +624,9 @@ export function ExpenseTracker({ expenses, setExpenses }) {
       {/* Expenses Table */}
       <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-xl shadow-lg transition-colors">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">All Expenses</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            All Expenses
+          </h2>
           {expenses.length > 0 && (
             <button
               onClick={deleteAllExpenses}
@@ -493,7 +640,9 @@ export function ExpenseTracker({ expenses, setExpenses }) {
         {/* Filters */}
         <div className="mb-4 flex flex-wrap gap-3">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Person:</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Person:
+            </label>
             <select
               aria-label="Person Filter"
               value={personFilter}
@@ -503,14 +652,17 @@ export function ExpenseTracker({ expenses, setExpenses }) {
               <option value="All">All ({expenses.length})</option>
               {PEOPLE.map((person) => (
                 <option key={person} value={person}>
-                  {person.split(" ")[0]} ({expenses.filter(e => e.person === person).length})
+                  {person.split(" ")[0]} (
+                  {expenses.filter((e) => e.person === person).length})
                 </option>
               ))}
             </select>
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Category:</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Category:
+            </label>
             <select
               aria-label="Category Filter"
               value={categoryFilter}
@@ -520,7 +672,8 @@ export function ExpenseTracker({ expenses, setExpenses }) {
               <option value="All">All ({expenses.length})</option>
               {uniqueCategories.map((category) => (
                 <option key={category} value={category}>
-                  {category} ({expenses.filter(e => e.category === category).length})
+                  {category} (
+                  {expenses.filter((e) => e.category === category).length})
                 </option>
               ))}
             </select>
@@ -546,10 +699,15 @@ export function ExpenseTracker({ expenses, setExpenses }) {
         {/* Mobile Card View */}
         <div className="block sm:hidden space-y-4">
           {sortedExpenses.map((exp, index) => (
-            <div key={exp.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+            <div
+              key={exp.id}
+              className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600"
+            >
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{exp.date}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                    {exp.date}
+                  </div>
                   <div className="font-semibold text-lg text-gray-900 dark:text-white">
                     {exp.amount.toFixed(2)} kr
                   </div>
@@ -576,23 +734,27 @@ export function ExpenseTracker({ expenses, setExpenses }) {
                     exp.category === "Personal"
                       ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                       : exp.category === "Shared (40/60)"
-                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                      : exp.category === "Shared (50/50)"
-                      ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                      : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                        : exp.category === "Shared (50/50)"
+                          ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                          : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                   }`}
                 >
                   {exp.category}
                 </span>
               </div>
               {exp.description && (
-                <div className="text-sm text-gray-600 dark:text-gray-400">{exp.description}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  {exp.description}
+                </div>
               )}
             </div>
           ))}
           {sortedExpenses.length === 0 && (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              {expenses.length === 0 ? "No expenses yet" : "No expenses match the current filters"}
+              {expenses.length === 0
+                ? "No expenses yet"
+                : "No expenses match the current filters"}
             </div>
           )}
         </div>
@@ -603,34 +765,44 @@ export function ExpenseTracker({ expenses, setExpenses }) {
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-700">
                 <th
-                  onClick={() => handleSort('date')}
+                  onClick={() => handleSort("date")}
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
-                  Date {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  Date{" "}
+                  {sortConfig.key === "date" &&
+                    (sortConfig.direction === "asc" ? "↑" : "↓")}
                 </th>
                 <th
-                  onClick={() => handleSort('person')}
+                  onClick={() => handleSort("person")}
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
-                  Person {sortConfig.key === 'person' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  Person{" "}
+                  {sortConfig.key === "person" &&
+                    (sortConfig.direction === "asc" ? "↑" : "↓")}
                 </th>
                 <th
-                  onClick={() => handleSort('amount')}
+                  onClick={() => handleSort("amount")}
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
-                  Amount {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  Amount{" "}
+                  {sortConfig.key === "amount" &&
+                    (sortConfig.direction === "asc" ? "↑" : "↓")}
                 </th>
                 <th
-                  onClick={() => handleSort('category')}
+                  onClick={() => handleSort("category")}
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
-                  Category {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  Category{" "}
+                  {sortConfig.key === "category" &&
+                    (sortConfig.direction === "asc" ? "↑" : "↓")}
                 </th>
                 <th
-                  onClick={() => handleSort('description')}
+                  onClick={() => handleSort("description")}
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
-                  Description {sortConfig.key === 'description' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  Description{" "}
+                  {sortConfig.key === "description" &&
+                    (sortConfig.direction === "asc" ? "↑" : "↓")}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Actions
@@ -641,7 +813,11 @@ export function ExpenseTracker({ expenses, setExpenses }) {
               {sortedExpenses.map((exp, index) => (
                 <tr
                   key={exp.id}
-                  className={index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-750"}
+                  className={
+                    index % 2 === 0
+                      ? "bg-white dark:bg-gray-800"
+                      : "bg-gray-50 dark:bg-gray-750"
+                  }
                 >
                   {editingId === exp.id ? (
                     <>
@@ -649,18 +825,24 @@ export function ExpenseTracker({ expenses, setExpenses }) {
                         <input
                           type="date"
                           value={editData.date}
-                          onChange={(e) => setEditData({ ...editData, date: e.target.value })}
+                          onChange={(e) =>
+                            setEditData({ ...editData, date: e.target.value })
+                          }
                           className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         />
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
                         <select
                           value={editData.person}
-                          onChange={(e) => setEditData({ ...editData, person: e.target.value })}
+                          onChange={(e) =>
+                            setEditData({ ...editData, person: e.target.value })
+                          }
                           className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         >
                           {PEOPLE.map((person) => (
-                            <option key={person} value={person}>{person.split(" ")[0]}</option>
+                            <option key={person} value={person}>
+                              {person.split(" ")[0]}
+                            </option>
                           ))}
                         </select>
                       </td>
@@ -669,18 +851,27 @@ export function ExpenseTracker({ expenses, setExpenses }) {
                           type="number"
                           step="0.01"
                           value={editData.amount}
-                          onChange={(e) => setEditData({ ...editData, amount: e.target.value })}
+                          onChange={(e) =>
+                            setEditData({ ...editData, amount: e.target.value })
+                          }
                           className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm w-24 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         />
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
                         <select
                           value={editData.category}
-                          onChange={(e) => setEditData({ ...editData, category: e.target.value })}
+                          onChange={(e) =>
+                            setEditData({
+                              ...editData,
+                              category: e.target.value,
+                            })
+                          }
                           className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         >
                           {CATEGORIES.map((cat) => (
-                            <option key={cat} value={cat}>{cat}</option>
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
                           ))}
                         </select>
                       </td>
@@ -688,7 +879,12 @@ export function ExpenseTracker({ expenses, setExpenses }) {
                         <input
                           type="text"
                           value={editData.description}
-                          onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                          onChange={(e) =>
+                            setEditData({
+                              ...editData,
+                              description: e.target.value,
+                            })
+                          }
                           className="p-1 border border-gray-300 dark:border-gray-600 rounded text-sm w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         />
                       </td>
@@ -724,10 +920,10 @@ export function ExpenseTracker({ expenses, setExpenses }) {
                             exp.category === "Personal"
                               ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                               : exp.category === "Shared (40/60)"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : exp.category === "Shared (50/50)"
-                              ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                              : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : exp.category === "Shared (50/50)"
+                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                                  : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                           }`}
                         >
                           {exp.category}
@@ -758,7 +954,9 @@ export function ExpenseTracker({ expenses, setExpenses }) {
           </table>
           {sortedExpenses.length === 0 && (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              {expenses.length === 0 ? "No expenses yet" : "No expenses match the current filters"}
+              {expenses.length === 0
+                ? "No expenses yet"
+                : "No expenses match the current filters"}
             </div>
           )}
         </div>
@@ -781,9 +979,10 @@ export function DocumentReader({ setExpenses, expenses }) {
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
 
-  const uniqueCategories = expenses.length > 0
-    ? [...new Set(expenses.map(exp => exp.category))]
-    : CATEGORIES;
+  const uniqueCategories =
+    expenses.length > 0
+      ? [...new Set(expenses.map((exp) => exp.category))]
+      : CATEGORIES;
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -799,15 +998,17 @@ export function DocumentReader({ setExpenses, expenses }) {
         const rows = results.data;
 
         // Parse all rows (not just food merchants)
-        const entries = rows.map((row, index) => ({
-          id: index,
-          person: row.Kortmedlem || "Unknown",
-          amount: parseFloat(row.Belopp?.replace(",", ".")) || 0,
-          description: row.Beskrivning || "",
-          date: parseCsvDate(row.Datum),
-          category: uniqueCategories[0] || "Personal", // default to first available category
-          originalRow: row
-        })).filter(entry => entry.amount !== 0 && entry.description); // filter out invalid entries
+        const entries = rows
+          .map((row, index) => ({
+            id: index,
+            person: row.Kortmedlem || "Unknown",
+            amount: parseFloat(row.Belopp?.replace(",", ".")) || 0,
+            description: row.Beskrivning || "",
+            date: parseCsvDate(row.Datum),
+            category: uniqueCategories[0] || "Personal", // default to first available category
+            originalRow: row,
+          }))
+          .filter((entry) => entry.amount !== 0 && entry.description); // filter out invalid entries
 
         if (entries.length === 0) {
           setMessage("No valid entries found in CSV.");
@@ -818,7 +1019,9 @@ export function DocumentReader({ setExpenses, expenses }) {
         setParsedEntries(entries);
         setStep(2);
         setLoading(false);
-        setMessage(`Found ${entries.length} entries. Please categorize each one.`);
+        setMessage(
+          `Found ${entries.length} entries. Please categorize each one.`,
+        );
       },
       error: (err) => {
         console.error(err);
@@ -829,10 +1032,10 @@ export function DocumentReader({ setExpenses, expenses }) {
   };
 
   const updateEntryCategory = (entryId, category) => {
-    setParsedEntries(entries => 
-      entries.map(entry => 
-        entry.id === entryId ? { ...entry, category } : entry
-      )
+    setParsedEntries((entries) =>
+      entries.map((entry) =>
+        entry.id === entryId ? { ...entry, category } : entry,
+      ),
     );
   };
 
@@ -840,19 +1043,22 @@ export function DocumentReader({ setExpenses, expenses }) {
     setLoading(true);
     setMessage("");
 
-    const entriesToAdd = personFilter === "All"
-      ? parsedEntries
-      : parsedEntries.filter(entry => entry.person === personFilter);
+    const entriesToAdd =
+      personFilter === "All"
+        ? parsedEntries
+        : parsedEntries.filter((entry) => entry.person === personFilter);
 
     try {
       for (const entry of entriesToAdd) {
-        const { error } = await supabase.from("expenses").insert([{
-          person: entry.person,
-          amount: entry.amount,
-          category: entry.category,
-          description: entry.description,
-          date: entry.date,
-        }]);
+        const { error } = await supabase.from("expenses").insert([
+          {
+            person: entry.person,
+            amount: entry.amount,
+            category: entry.category,
+            description: entry.description,
+            date: entry.date,
+          },
+        ]);
         if (error) throw error;
       }
 
@@ -892,8 +1098,12 @@ export function DocumentReader({ setExpenses, expenses }) {
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-6 border-b dark:border-gray-700">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">CSV Import Wizard</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Step {step} of 3</p>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  CSV Import Wizard
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Step {step} of 3
+                </p>
               </div>
               <button
                 onClick={resetWizard}
@@ -902,15 +1112,18 @@ export function DocumentReader({ setExpenses, expenses }) {
                 ✕
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-auto p-6">
               {step === 1 && (
                 <div>
-                  <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Upload CSV File</h3>
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                    Upload CSV File
+                  </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Upload your CSV file with expense data. All entries will be parsed and you can categorize each one.
+                    Upload your CSV file with expense data. All entries will be
+                    parsed and you can categorize each one.
                   </p>
-                  
+
                   <input
                     type="file"
                     accept=".csv"
@@ -922,9 +1135,12 @@ export function DocumentReader({ setExpenses, expenses }) {
 
               {step === 2 && (
                 <div>
-                  <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Categorize Entries</h3>
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                    Categorize Entries
+                  </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Review and categorize each entry before adding them to your expenses.
+                    Review and categorize each entry before adding them to your
+                    expenses.
                   </p>
 
                   <div className="mb-4 flex gap-2">
@@ -948,34 +1164,56 @@ export function DocumentReader({ setExpenses, expenses }) {
                             : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                         }`}
                       >
-                        {person.split(" ")[0]} ({parsedEntries.filter(e => e.person === person).length})
+                        {person.split(" ")[0]} (
+                        {
+                          parsedEntries.filter((e) => e.person === person)
+                            .length
+                        }
+                        )
                       </button>
                     ))}
                   </div>
 
                   <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {parsedEntries.filter(entry =>
-                      personFilter === "All" || entry.person === personFilter
-                    ).map((entry) => (
-                      <div key={entry.id} className="border dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700">
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex-1">
-                            <div className="font-semibold text-gray-900 dark:text-white">{entry.amount.toFixed(2)} kr</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{entry.description}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{entry.date} • {entry.person}</div>
+                    {parsedEntries
+                      .filter(
+                        (entry) =>
+                          personFilter === "All" ||
+                          entry.person === personFilter,
+                      )
+                      .map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="border dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-900 dark:text-white">
+                                {entry.amount.toFixed(2)} kr
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                {entry.description}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {entry.date} • {entry.person}
+                              </div>
+                            </div>
+                            <select
+                              value={entry.category}
+                              onChange={(e) =>
+                                updateEntryCategory(entry.id, e.target.value)
+                              }
+                              className="ml-4 p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white dark:bg-gray-600 text-gray-900 dark:text-white"
+                            >
+                              {uniqueCategories.map((cat) => (
+                                <option key={cat} value={cat}>
+                                  {cat}
+                                </option>
+                              ))}
+                            </select>
                           </div>
-                          <select
-                            value={entry.category}
-                            onChange={(e) => updateEntryCategory(entry.id, e.target.value)}
-                            className="ml-4 p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white dark:bg-gray-600 text-gray-900 dark:text-white"
-                          >
-                            {uniqueCategories.map((cat) => (
-                              <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                          </select>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </div>
               )}
@@ -983,17 +1221,23 @@ export function DocumentReader({ setExpenses, expenses }) {
               {step === 3 && (
                 <div className="text-center">
                   <div className="text-green-600 text-4xl mb-4">✓</div>
-                  <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Import Complete!</h3>
-                  <p className="text-gray-600 dark:text-gray-400">All entries have been successfully added to your expenses.</p>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                    Import Complete!
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    All entries have been successfully added to your expenses.
+                  </p>
                 </div>
               )}
 
               {loading && (
                 <div className="flex items-center justify-center py-4">
-                  <div className="text-indigo-600 dark:text-indigo-400">Processing...</div>
+                  <div className="text-indigo-600 dark:text-indigo-400">
+                    Processing...
+                  </div>
                 </div>
               )}
-              
+
               {message && (
                 <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded text-sm text-blue-800 dark:text-blue-200">
                   {message}
@@ -1021,7 +1265,7 @@ export function DocumentReader({ setExpenses, expenses }) {
                   >
                     {personFilter === "All"
                       ? `Add All ${parsedEntries.length} Entries`
-                      : `Add ${parsedEntries.filter(e => e.person === personFilter).length} Entries (${personFilter.split(" ")[0]})`}
+                      : `Add ${parsedEntries.filter((e) => e.person === personFilter).length} Entries (${personFilter.split(" ")[0]})`}
                   </button>
                 )}
                 {step === 3 && (
