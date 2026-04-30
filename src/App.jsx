@@ -204,6 +204,85 @@ async function loadExpenses(setExpenses, setLoading) {
   }
 }
 
+function Calculator() {
+  const [expression, setExpression] = useState("");
+  const computed = parseAmountExpression(expression);
+  const hasResult = computed !== null && expression.trim() !== "";
+
+  function append(token) {
+    setExpression((prev) => prev + token);
+  }
+
+  function clear() {
+    setExpression("");
+  }
+
+  function backspace() {
+    setExpression((prev) => prev.slice(0, -1));
+  }
+
+  const buttons = [
+    "7", "8", "9", "/",
+    "4", "5", "6", "*",
+    "1", "2", "3", "-",
+    "0", ".", "(", ")",
+  ];
+
+  return (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors">
+      <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+        Calculator
+      </h2>
+      <div className="space-y-3">
+        <input
+          className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-lg font-mono"
+          type="text"
+          inputMode="decimal"
+          placeholder="e.g. 100+50*2"
+          value={expression}
+          onChange={(e) => setExpression(e.target.value)}
+        />
+        <div className="text-right text-2xl font-bold text-indigo-600 dark:text-indigo-300 min-h-[2rem]">
+          {hasResult ? `= ${computed.toFixed(2)}` : ""}
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {buttons.map((btn) => (
+            <button
+              key={btn}
+              type="button"
+              onClick={() => append(btn)}
+              className="p-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-semibold transition"
+            >
+              {btn}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => append("+")}
+            className="p-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-semibold transition"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={backspace}
+            className="p-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold transition"
+          >
+            ⌫
+          </button>
+          <button
+            type="button"
+            onClick={clear}
+            className="col-span-2 p-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ExpenseTracker({ expenses, setExpenses }) {
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
@@ -225,8 +304,8 @@ export function ExpenseTracker({ expenses, setExpenses }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const computedAmount = parseAmountExpression(formData.amount);
-    if (!formData.person || computedAmount === null) {
+    const computedAmount = parseFloat(formData.amount);
+    if (!formData.person || !isFinite(computedAmount)) {
       alert("Please fill in name and amount");
       return;
     }
@@ -426,30 +505,17 @@ export function ExpenseTracker({ expenses, setExpenses }) {
                 </option>
               ))}
             </select>
-            {(() => {
-              const computed = parseAmountExpression(formData.amount);
-              const isCalc =
-                computed !== null &&
-                parseFloat(formData.amount) !== computed;
-              return (
-                <div className="relative">
-                  <input
-                    className="w-full p-3 pr-24 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    type="text"
-                    inputMode="decimal"
-                    name="amount"
-                    placeholder="Amount (e.g. 100+50)"
-                    value={formData.amount}
-                    onChange={handleChange}
-                  />
-                  {isCalc && (
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-indigo-600 dark:text-indigo-300">
-                      = {computed.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
+            <input
+              className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              name="amount"
+              placeholder="Amount"
+              value={formData.amount}
+              onChange={handleChange}
+            />
+
             <select
               className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               name="category"
@@ -486,6 +552,9 @@ export function ExpenseTracker({ expenses, setExpenses }) {
           </button>
         </form>
       </div>
+      {/* Standalone Calculator */}
+      <Calculator />
+
       {/* Most Important Stats - Shared Expenses by Person */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
