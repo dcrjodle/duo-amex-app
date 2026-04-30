@@ -21,6 +21,19 @@ const CATEGORIES = ["Personal", "Shared (40/60)", "Shared (50/50)"];
 const PEOPLE = ["ANA TRAMOSLJANIN", "CARL OLOF JOEL BYSTEDT"];
 const FOOD_MERCHANTS = ["lidl", "coop", "ica", "hemkop"];
 
+function parseAmountExpression(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!/^[\d.+\-*/()\s]+$/.test(trimmed)) return null;
+  try {
+    const result = Function(`"use strict"; return (${trimmed})`)();
+    return typeof result === "number" && isFinite(result) ? result : null;
+  } catch {
+    return null;
+  }
+}
+
 const COLORS = [
   "#8B5CF6",
   "#06B6D4",
@@ -212,7 +225,8 @@ export function ExpenseTracker({ expenses, setExpenses }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!formData.person || !formData.amount) {
+    const computedAmount = parseAmountExpression(formData.amount);
+    if (!formData.person || computedAmount === null) {
       alert("Please fill in name and amount");
       return;
     }
@@ -221,7 +235,7 @@ export function ExpenseTracker({ expenses, setExpenses }) {
       const { error } = await supabase.from("expenses").insert([
         {
           person: formData.person,
-          amount: parseFloat(formData.amount),
+          amount: computedAmount,
           category: formData.category,
           description: formData.description,
           date: formData.date,
@@ -412,15 +426,30 @@ export function ExpenseTracker({ expenses, setExpenses }) {
                 </option>
               ))}
             </select>
-            <input
-              className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              type="number"
-              name="amount"
-              placeholder="Amount"
-              step="0.01"
-              value={formData.amount}
-              onChange={handleChange}
-            />
+            {(() => {
+              const computed = parseAmountExpression(formData.amount);
+              const isCalc =
+                computed !== null &&
+                parseFloat(formData.amount) !== computed;
+              return (
+                <div className="relative">
+                  <input
+                    className="w-full p-3 pr-24 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    type="text"
+                    inputMode="decimal"
+                    name="amount"
+                    placeholder="Amount (e.g. 100+50)"
+                    value={formData.amount}
+                    onChange={handleChange}
+                  />
+                  {isCalc && (
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-indigo-600 dark:text-indigo-300">
+                      = {computed.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
             <select
               className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               name="category"
